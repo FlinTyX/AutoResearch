@@ -13,7 +13,7 @@ For example:
 You only have `Copper` in your items list, and the algorithm has filtered `Distributor` and `Copper Wall`.
 It will priorize `Copper Wall`, because `Distributor` needs `Lead` to be unlocked.
 
+Auto-research happens when you open the tech tree.
 You can disable the auto-research in Settings/Game/Auto Research
-
 
 ![image](icon.png)
