@@ -49,11 +49,9 @@ function refreshCached(){
 }
 
 function updateTree(){
-    for(let i = 0, e; i < cached.length; i++){
-        e = cached[i];
-
-        if(realCost(e) == 0){
-            spend(e);
+    cached.forEach(node => {
+        if(realCost(node) == 0){
+            spend(node);
         }
 
         if(!Vars.ui.research.items.toString().equals("{}")){
@@ -61,7 +59,7 @@ function updateTree(){
 
             if(next) spend(next);
         }
-    }
+    });
 }
 
 Events.on(ClientLoadEvent, () => {
@@ -112,7 +110,7 @@ Events.on(ClientLoadEvent, () => {
         info.row();
 
         if(Core.settings.getBool("autoresearch")){
-            updateTree();
+            while(cached.length > 0 && getNode() != null) updateTree();
         }
     });
 
