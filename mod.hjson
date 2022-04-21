@@ -5,3 +5,4 @@ author: Flin
 version: 0.1 Algorithm
 minGameVersion: 130
 repo: FlinTyX/AutoResearch
+hidden: true
