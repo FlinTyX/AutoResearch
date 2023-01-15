@@ -2,7 +2,7 @@ name: auto-research
 displayName: Auto Research
 description: "A simple mod that researches content automatically.\n\nAlgorithm description:\nLooks up for avaliable tech nodes with all the objectives completed, then sorts them by real cost.\n\nFirst of all it unlocks content like maps and items (with no costs), then it researches the cheapest node with the avaliable items in the planet.\n\nYou can disable the auto-research in Settings/Game/Auto Research"
 author: Flin
-version: 0.1 Algorithm
-minGameVersion: 130
+version: Algorithm 1.1
+minGameVersion: 141
 repo: FlinTyX/AutoResearch
 hidden: true

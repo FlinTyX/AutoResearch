@@ -1,4 +1,5 @@
-let cached = null, next = undefined;
+let cached = null, next = null, nodes = null,
+    pane = null, info = null;
 
 function canSpend(node){
     return Reflect.invoke(ResearchDialog.View, Vars.ui.research.view, "canSpend", [node], [TechTree.TechNode]);
@@ -25,14 +26,14 @@ function realCost(node){
 }
 
 function isValid(node){
-    return node.parent && !node.parent.content.locked() && (node.objectives.size < 1 || node.objectives.select(e => !e.complete()).size == 0);
+    return node.parent && !node.parent.content.locked() && (node.objectives.size < 1 || node.objectives.select(e => !e.complete()).size == 0)
 }
 
 function getNode(){
     let n = null;
 
     cached.forEach(node => {
-        if(n) return;
+        if(n != null) return;
         
         for(let i = 0; i < node.requirements.length; i++){
             if(!Vars.ui.research.items.has(node.requirements[i].item) && node.requirements[i].amount - node.finishedRequirements[i].amount > 0) return;
@@ -45,7 +46,8 @@ function getNode(){
 }
 
 function refreshCached(){
-    cached = TechTree.all.toArray().filter(e => isValid(e) && e.content.locked()).sort((a, b) => realCost(a) - realCost(b));
+    nodes = nodes.filter(node => node.content.locked());
+    cached = nodes.filter(e => isValid(e) && e.content.locked()).sort((a, b) => realCost(a) - realCost(b));
 }
 
 function updateTree(){
@@ -62,14 +64,34 @@ function updateTree(){
     });
 }
 
+function rebuild(){
+    refreshCached();
+                
+    info.clear();
+    info.add("@researcher.researchlist").pad(6);
+    info.row();
+    info.image().width(250).height(3.5).color(Pal.accent).margin(8);
+    info.row();
+    
+    if(cached.length > 0) info.add(pane).maxHeight(800).pad(10);
+    else info.add("[lightgray]" + Core.bundle.get("none")).padTop(5).pad(5);
+    
+    info.row();
+
+    if(Core.settings.getBool("autoresearch")){
+        while(cached.length > 0 && getNode() != null) updateTree();
+    }
+}
+
 Events.on(ClientLoadEvent, () => {
     if(!Core.settings.has("autoresearch")){
         Core.settings.put("autoresearch", true);
     }
 
-    const info = new Table(Tex.inventory),
-          pane = new ScrollPane(new Table(), Styles.nonePane),
-          log = new Table(null, t => {
+    info = new Table();
+    pane = new ScrollPane(new Table(), Styles.smallPane);
+
+    const log = new Table(null, t => {
             t.add("Invalid").update(label => {
                 label.color.set(Pal.remove);
 
@@ -93,30 +115,22 @@ Events.on(ClientLoadEvent, () => {
         pane.widget.row();
 
         cached.forEach(node => {
-            pane.widget.add((node.content.hasEmoji() ? node.content.emoji() + " " : "") + node.content.localizedName).padTop(5);
+            pane.widget.add((node.content.hasEmoji() ? node.content.emoji() + " " : "") + node.content.localizedName).padTop(5).pad(5);
             pane.widget.row();
         });
     });
 
     Vars.ui.research.shown(() => {
-        refreshCached();
-                
-        info.clear();
-        info.add(Core.bundle.get("researcher.researchlist")).pad(6);
-        info.row();
-        info.image().width(270).height(4).color(Pal.accent).margin(8);
-        info.row();
-        info.add(pane).maxHeight(800).pad(10);
-        info.row();
+        nodes = Vars.ui.research.nodes.toSeq();
+        nodes.replace(node => node.node);
+        nodes = nodes.toArray();
 
-        if(Core.settings.getBool("autoresearch")){
-            while(cached.length > 0 && getNode() != null) updateTree();
-        }
+        rebuild();
     });
 
     Vars.ui.research.fill(null, t => {
         t.top();
-        t.add(log);
+        t.add(log).padTop(60);
     });
 
     Vars.ui.research.fill(null, t => {
