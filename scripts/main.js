@@ -1,5 +1,14 @@
-let cached = null, next = null, nodes = null,
-    pane = null, info = null;
+let priorities = [], cached, next, nodes, pane, info, tutorial;
+
+const interval = new Interval(), filters = {
+    all: ["cheap", "expensive", "unit", "block", "modded", "vanilla"],
+    cheap: c => c.sort((a, b) => realCost(a) - realCost(b)),
+    expensive: c => c.sort((a, b) => realCost(b) - realCost(a)),
+    unit: c => c.filter(node => node.content instanceof UnitType).sort((a, b) => realCost(a) - realCost(b)),
+    block: c => c.filter(node => node.content instanceof Block).sort((a, b) => realCost(a) - realCost(b)),
+    modded: c => c.filter(node => node.content.minfo.mod != null).sort((a, b) => realCost(a) - realCost(b)),
+    vanilla: c => c.filter(node => node.content.minfo.mod == null).sort((a, b) => realCost(a) - realCost(b))
+}
 
 function canSpend(node){
     return Reflect.invoke(ResearchDialog.View, Vars.ui.research.view, "canSpend", [node], [TechTree.TechNode]);
@@ -26,7 +35,10 @@ function realCost(node){
 }
 
 function isValid(node){
-    return node.parent && !node.parent.content.locked() && (node.objectives.size < 1 || node.objectives.select(e => !e.complete()).size == 0)
+    return node.parent && 
+           node.content.locked() &&
+           !node.parent.content.locked() && 
+           (node.objectives.size < 1 || node.objectives.select(e => !e.complete()).size == 0)
 }
 
 function getNode(){
@@ -46,8 +58,13 @@ function getNode(){
 }
 
 function refreshCached(){
-    nodes = nodes.filter(node => node.content.locked());
-    cached = nodes.filter(e => isValid(e) && e.content.locked()).sort((a, b) => realCost(a) - realCost(b));
+    priorities = priorities.filter(n => isValid(n));
+    
+    cached = filters[Core.settings.getString("autoresearch.filter")](priorities).concat(
+        filters[Core.settings.getString("autoresearch.filter")](
+            nodes.filter(e => isValid(e) && !priorities.includes(e))
+        )
+    );
 }
 
 function updateTree(){
@@ -68,14 +85,50 @@ function rebuild(){
     refreshCached();
                 
     info.clear();
-    info.add("@researcher.researchlist").pad(6);
+    info.add("@researcher.researchlist").pad(8);
     info.row();
-    info.image().width(250).height(3.5).color(Pal.accent).margin(8);
+    info.image().width(250).height(3.5).color(Pal.accent).margin(10).padTop(5);
     info.row();
     
-    if(cached.length > 0) info.add(pane).maxHeight(800).pad(10);
-    else info.add("[lightgray]" + Core.bundle.get("none")).padTop(5).pad(5);
-    
+    info.table(null, t => {
+        if(cached.length > 0) info.add(pane).maxHeight(300).pad(10);
+        else info.add("[lightgray]" + Core.bundle.get("none")).padTop(5).pad(5);
+    });
+
+    info.row();
+    info.add("@researcher.filter").pad(5).color(Pal.accent);
+    info.row();
+    info.table(null, t => {
+        function change(side){
+            let i = filters.all.indexOf(Core.settings.getString("autoresearch.filter")) + side;
+
+            if(i > filters.all.length - 1) i = 0;
+            if(i < 0) i = filters.all.length - 1;
+
+            Core.settings.put("autoresearch.filter", filters.all[i]);
+
+            rebuild();
+        }
+
+        t.button(Icon.leftSmall, Styles.emptyi, () => {
+            change(-1);
+        }).size(32).left();
+
+        t.table(null, tt => {
+            tt.add("").update(l => l.setText(Core.bundle.get("researcher.filter." + Core.settings.getString("autoresearch.filter"))));
+        }).grow().size(186, 32).center();
+
+        t.button(Icon.rightSmall, Styles.emptyi, () => {
+            change(1);
+        }).size(32).right();
+
+        t.row();
+    }).growX().fillX().center().padTop(5);
+
+    info.row();
+    info.button(Icon.infoSmall, Styles.emptyi, () => {
+        tutorial.show();
+    }).grow().size(250, 50).padBottom(5).center();
     info.row();
 
     if(Core.settings.getBool("autoresearch")){
@@ -88,7 +141,16 @@ Events.on(ClientLoadEvent, () => {
         Core.settings.put("autoresearch", true);
     }
 
+    if(!Core.settings.has("autoresearch.filter")){
+        Core.settings.put("autoresearch.filter", "cheap");
+    }
+
+    if(!Core.settings.has("autoresearch.priorities")){
+        Core.settings.put("autoresearch.priorities", "");
+    }
+
     info = new Table();
+    tutorial = new Dialog();
     pane = new ScrollPane(new Table(), Styles.smallPane);
 
     const log = new Table(null, t => {
@@ -110,22 +172,89 @@ Events.on(ClientLoadEvent, () => {
             }).get().setFontScale(0.86);
     });
 
+    pane.widget.top();
     pane.update(() => {
-        pane.widget.clear();
-        pane.widget.row();
-
-        cached.forEach(node => {
-            pane.widget.add((node.content.hasEmoji() ? node.content.emoji() + " " : "") + node.content.localizedName).padTop(5).pad(5);
+        if(interval.get(30)){
+            pane.widget.clear();
             pane.widget.row();
-        });
+
+            cached.forEach(node => {
+                const table = pane.widget.table(null, t => {
+                    t.touchable = Touchable.enabled;
+                    t.image(node.content.fullIcon).size(16).padRight(5).pad(5);
+                    t.add(node.content.localizedName).padTop(5).pad(5).color(priorities.includes(node) ? Pal.power : Color.white);
+                    pane.widget.row();
+                }).get();
+                
+                table.addListener(extend(ClickListener, {
+                    clicked(event, x, y){
+                        if(priorities.includes(node)) priorities.splice(priorities.indexOf(node), 1);
+                        else priorities.push(node);
+                        rebuild();
+                    }
+                }));
+
+                table.addListener(new HandCursorListener());
+            });
+        }
     });
 
+    tutorial.fill(null, t => {
+        t.add("@researcher.info.title", Styles.defaultLabel, 1).padLeft(4);
+        t.row();
+        t.image(Tex.whiteui, Pal.accent).growX().height(4).pad(5).padTop(10).width(700);
+        t.row();
+        t.add("@researcher.info.text").width(1000).wrap().pad(10);
+        t.row();
+
+        t.table(null, tt => {
+            tt.image(Blocks.router.fullIcon).size(16).padRight(5).pad(5);
+            tt.add(Blocks.router.localizedName).update(l => {
+                l.color.set(Color.white).lerp(Pal.power, Mathf.absin(8, 1));
+            });
+        });
+
+        t.row();
+        t.add("@researcher.info.thanks").width(1000).wrap().pad(10);
+        t.row();
+
+        t.button("@back", Icon.left, () => {
+            tutorial.hide();
+        }).size(300, 54).pad(8).padTop(10);
+
+        Core.settings.getBoolOnce("researcher.tutorial", () => tutorial.show());
+    });
+
+    /**
+     * Update nodes
+     * Load up priorities if needed
+     * Rebuild
+     */
     Vars.ui.research.shown(() => {
         nodes = Vars.ui.research.nodes.toSeq();
         nodes.replace(node => node.node);
         nodes = nodes.toArray();
 
+        if(priorities.length < 1){
+            const pt = Core.settings.getString("autoresearch.priorities");
+
+            nodes.forEach(n => {
+                if(pt.includes(n.content.name)) priorities.push(n);
+            });
+        }
+        
         rebuild();
+    });
+
+    /**
+     * Save up priorities
+     */
+    Vars.ui.research.hidden(() =>  {
+        let pt = "";
+
+        priorities.forEach(n => pt += n.content.name + " ");
+
+        Core.settings.put("autoresearch.priorities", pt);
     });
 
     Vars.ui.research.fill(null, t => {
@@ -135,7 +264,7 @@ Events.on(ClientLoadEvent, () => {
 
     Vars.ui.research.fill(null, t => {
         t.top().right();
-        t.add(info).margin(8);
+        t.add(info);
     });
 
     Vars.ui.settings.game.checkPref(
