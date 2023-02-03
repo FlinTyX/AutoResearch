@@ -200,11 +200,13 @@ Events.on(ClientLoadEvent, () => {
     });
 
     tutorial.fill(null, t => {
+        const w = Core.graphics.getWidth() * 0.8;
+
         t.add("@researcher.info.title", Styles.defaultLabel, 1).padLeft(4);
         t.row();
-        t.image(Tex.whiteui, Pal.accent).growX().height(4).pad(5).padTop(10).width(700);
+        t.image(Tex.whiteui, Pal.accent).growX().height(4).pad(5).padTop(10).width(w * 0.65);
         t.row();
-        t.add("@researcher.info.text").width(1000).wrap().pad(10);
+        t.add("@researcher.info.text").width(w).wrap().pad(10);
         t.row();
 
         t.table(null, tt => {
@@ -215,14 +217,14 @@ Events.on(ClientLoadEvent, () => {
         });
 
         t.row();
-        t.add("@researcher.info.thanks").width(1000).wrap().pad(10);
+        t.add("@researcher.info.thanks").width(w).wrap().pad(10);
         t.row();
 
         t.button("@back", Icon.left, () => {
             tutorial.hide();
         }).size(300, 54).pad(8).padTop(10);
 
-        Core.settings.getBoolOnce("researcher.tutorial", () => tutorial.show());
+        Core.settings.getBoolOnce("researcher.showtutorial", () => tutorial.show());
     });
 
     /**
